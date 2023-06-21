@@ -198,7 +198,7 @@ def _read_filter_data(filename):
     Gather frequency-dependent filtering data from a data file.
 
     The data file should have columns for frequency, non-dB gain, and phase
-    (in radians).
+4    (in radians).
 
     Parameters
     ----------
@@ -216,54 +216,52 @@ def _read_filter_data(filename):
     gains = []
     freqs = []
     freq_scale = 0
-    with open(filename) as f:
-        for line in f:
-            words = line.split()
-            if line.startswith('Freq'):
-                _, scale = words[0].split("(")
-                scale = scale.rstrip(")")
-                if scale=="Hz":
-                    freq_scale = 1
-                elif scale=="kHz":
-                    freq_scale = 1e3
-                elif scale=="MHz":
-                    freq_scale = 1e6
-                elif scale=="GHz":
-                    freq_scale = 1e9
-                else:
-                    raise ValueError("Cannot parse line: '"+line+"'")
-            elif len(words)==3 and words[0]!="Total":
-                f, g, p = line.split(",")
-                freq = float(f) * freq_scale
-                gain = float(g)
-                phase = float(p)
-                freqs.append(freq)
-                gains.append(gain * np.exp(1j*phase))
+    if filename.endswith('.csv'):
+    	with open(filename) as f:
+    		lines = f.readlines()
+    		arrayLength = lines - 1
+    		freqGainPhase = np.empty((arrayLength,33))
+    		for line in f:
+    			entry=0
+    			words = line.split()
+    			if line.startswith('Freq'):
+    				continue
+    		else:
+    			freqGainPhase[entry] = np.array(line.split(','))
+    			entry+=1
+    		freq = freqGainPhase[0,:]
+    		gain = freqGainPhase[1::2,:]
+    		phase = freqGainPhase[2::2,:]
+    		gains = np.multiple(gain, np.exp(1j*phase))
+
+    else:
+    	with open(filename) as f:
+    		for line in f:
+    	            words = line.split()
+    	            if line.startswith('Freq'):
+    	                _, scale = words[0].split("(")
+    	                scale = scale.rstrip(")")
+    	                if scale=="Hz":
+    	                    freq_scale = 1
+    	                elif scale=="kHz":
+    	                    freq_scale = 1e3
+    	                elif scale=="MHz":
+    	                    freq_scale = 1e6
+    	                elif scale=="GHz":
+    	                    freq_scale = 1e9
+    	                else:
+    	                    raise ValueError("Cannot parse line: '"+line+"'")
+    	            elif len(words)==3 and words[0]!="Total":
+    	                f, g, p = line.split(",")
+    	                freq = float(f) * freq_scale
+    	                gain = float(g)
+    	                phase = float(p)
+    	                freqs.append(freq)
+    	                gains.append(gain * np.exp(1j*phase))
 
     return np.array(gains), np.array(freqs)
 
 
-ARA_DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
-VPOL_DATA_FILE = os.path.join(ARA_DATA_DIR,
-                              "Vpol_original_CrossFeed_150mmHole_Ice_ARASim.txt")
-HPOL_DATA_FILE = os.path.join(ARA_DATA_DIR,
-                              "Hpol_original_150mmHole_Ice_ARASim.txt")
-FILT_DATA_FILE = os.path.join(ARA_DATA_DIR,
-                              "ARA_Electronics_TotalGain_TwoFilters.txt")
-# Vpol data file contains only the theta responses
-VPOL_THETA_RESPONSE_DATA = _read_arasim_antenna_pickle(VPOL_DATA_FILE)
-VPOL_RESPONSE_DATA = (
-    VPOL_THETA_RESPONSE_DATA[0],
-    np.zeros(VPOL_THETA_RESPONSE_DATA[0].shape),
-    *VPOL_THETA_RESPONSE_DATA[1:]
-)
-# Hpol data file contains only the phi responses
-HPOL_PHI_RESPONSE_DATA = _read_arasim_antenna_pickle(HPOL_DATA_FILE)
-HPOL_RESPONSE_DATA = (
-    np.zeros(HPOL_PHI_RESPONSE_DATA[0].shape),
-    *HPOL_PHI_RESPONSE_DATA
-)
-ALL_FILTERS_DATA = _read_filter_data(FILT_DATA_FILE)
 
 
 
@@ -690,6 +688,7 @@ class ARAAntennaSystem(AntennaSystem):
     def __init__(self, response_data, name, position, power_threshold,
                  orientation=(0,0,1), amplification=1, amplifier_clipping=1,
                  noisy=True, unique_noise_waveforms=10,
+		 station=None, channel=None, configuration=None,
                  **kwargs):
         super().__init__(ARAAntenna)
 
@@ -707,9 +706,17 @@ class ARAAntennaSystem(AntennaSystem):
         self.power_threshold = power_threshold
         self._power_mean = None
         self._power_std = None
+    
+        self._station = station
+        self._channel = channel
+        self._configuration = configuration
 
-        self._filter_response = ALL_FILTERS_DATA[0]
-        self._filter_freqs = ALL_FILTERS_DATA[1]
+        if (self._station is not None and self._channel is not None and self._configuration is not None):
+        	self._filter_response = ALL_FILTERS_DATA[self._channel]
+        	self._filter_freqs = ALL_FILTERS_DATA[-1]
+        else:	 
+        	self._filter_response = ALL_FILTERS_DATA[0]
+        	self._filter_freqs = ALL_FILTERS_DATA[1]
 
     @property
     def _metadata(self):
@@ -721,6 +728,9 @@ class ARAAntennaSystem(AntennaSystem):
             "amplification": self.amplification,
             "amplifier_clipping": self.amplifier_clipping,
             "power_threshold": self.power_threshold,
+            "station": self._station,
+            "channel": self._channel,
+            "configutation": self_configuration
         })
         return meta
 
@@ -1164,3 +1174,29 @@ class VpolAntenna(ARAAntennaSystem):
                          amplifier_clipping=amplifier_clipping,
                          noisy=noisy,
                          unique_noise_waveforms=unique_noise_waveforms)
+
+ARA_DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+VPOL_DATA_FILE = os.path.join(ARA_DATA_DIR,
+                              "Vpol_original_CrossFeed_150mmHole_Ice_ARASim.txt")
+HPOL_DATA_FILE = os.path.join(ARA_DATA_DIR,
+                              "Hpol_original_150mmHole_Ice_ARASim.txt")
+if (ARAAntennaSystem._station is not None and ARAAntennaSystem._channel is not None and ARAAntennaSystem._configuration is not None):
+	FILT_DATA_FILE = os.path.join(ARA_DATA_DIR, 
+			      "In_situ_Electronics_A%i_C%i.csv"%(ARAAntennaSystem._station,ARAAntennaSystem._configuration))
+else:
+	FILT_DATA_FILE = os.path.join(ARA_DATA_DIR,
+                              "ARA_Electronics_TotalGain_TwoFilters.txt")
+# Vpol data file contains only the theta responses
+VPOL_THETA_RESPONSE_DATA = _read_arasim_antenna_pickle(VPOL_DATA_FILE)
+VPOL_RESPONSE_DATA = (
+    VPOL_THETA_RESPONSE_DATA[0],
+    np.zeros(VPOL_THETA_RESPONSE_DATA[0].shape),
+    *VPOL_THETA_RESPONSE_DATA[1:]
+)
+# Hpol data file contains only the phi responses
+HPOL_PHI_RESPONSE_DATA = _read_arasim_antenna_pickle(HPOL_DATA_FILE)
+HPOL_RESPONSE_DATA = (
+    np.zeros(HPOL_PHI_RESPONSE_DATA[0].shape),
+    *HPOL_PHI_RESPONSE_DATA
+)
+ALL_FILTERS_DATA = _read_filter_data(FILT_DATA_FILE)
