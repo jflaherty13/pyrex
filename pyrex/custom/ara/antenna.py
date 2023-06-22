@@ -198,7 +198,7 @@ def _read_filter_data(filename):
     Gather frequency-dependent filtering data from a data file.
 
     The data file should have columns for frequency, non-dB gain, and phase
-4    (in radians).
+    (in radians).
 
     Parameters
     ----------
@@ -712,9 +712,15 @@ class ARAAntennaSystem(AntennaSystem):
         self._configuration = configuration
 
         if (self._station is not None and self._channel is not None and self._configuration is not None):
+        	FILT_DATA_FILE = os.path.join(ARA_DATA_DIR, "In_situ_Electronics_A%i_C%i.csv"%(self._station,self._configuration))
+        	ALL_FILTERS_DATA = _read_filter_data(FILT_DATA_FILE)
+
         	self._filter_response = ALL_FILTERS_DATA[self._channel]
         	self._filter_freqs = ALL_FILTERS_DATA[-1]
-        else:	 
+        else:
+        	FILT_DATA_FILE = os.path.join(ARA_DATA_DIR, "ARA_Electronics_TotalGain_TwoFilters.txt")
+
+        	ALL_FILTERS_DATA = _read_filter_data(FILT_DATA_FILE)	 
         	self._filter_response = ALL_FILTERS_DATA[0]
         	self._filter_freqs = ALL_FILTERS_DATA[1]
 
@@ -730,7 +736,7 @@ class ARAAntennaSystem(AntennaSystem):
             "power_threshold": self.power_threshold,
             "station": self._station,
             "channel": self._channel,
-            "configutation": self_configuration
+            "configuration": self_configuration
         })
         return meta
 
@@ -1092,7 +1098,8 @@ class HpolAntenna(ARAAntennaSystem):
     """
     def __init__(self, name, position, power_threshold,
                  amplification=1, amplifier_clipping=1, noisy=True,
-                 unique_noise_waveforms=10):
+                 unique_noise_waveforms=10,
+                 station=None, channel=None, configuration=None):
         super().__init__(response_data=HPOL_RESPONSE_DATA,
                          name=name, position=position,
                          power_threshold=power_threshold,
@@ -1165,7 +1172,8 @@ class VpolAntenna(ARAAntennaSystem):
     """
     def __init__(self, name, position, power_threshold,
                  amplification=1, amplifier_clipping=1, noisy=True,
-                 unique_noise_waveforms=10):
+                 unique_noise_waveforms=10,
+                 station=None, channel=None, configuration=None):
         super().__init__(response_data=VPOL_RESPONSE_DATA,
                          name=name, position=position,
                          power_threshold=power_threshold,
@@ -1180,12 +1188,7 @@ VPOL_DATA_FILE = os.path.join(ARA_DATA_DIR,
                               "Vpol_original_CrossFeed_150mmHole_Ice_ARASim.txt")
 HPOL_DATA_FILE = os.path.join(ARA_DATA_DIR,
                               "Hpol_original_150mmHole_Ice_ARASim.txt")
-if (ARAAntennaSystem._station is not None and ARAAntennaSystem._channel is not None and ARAAntennaSystem._configuration is not None):
-	FILT_DATA_FILE = os.path.join(ARA_DATA_DIR, 
-			      "In_situ_Electronics_A%i_C%i.csv"%(ARAAntennaSystem._station,ARAAntennaSystem._configuration))
-else:
-	FILT_DATA_FILE = os.path.join(ARA_DATA_DIR,
-                              "ARA_Electronics_TotalGain_TwoFilters.txt")
+
 # Vpol data file contains only the theta responses
 VPOL_THETA_RESPONSE_DATA = _read_arasim_antenna_pickle(VPOL_DATA_FILE)
 VPOL_RESPONSE_DATA = (
@@ -1199,4 +1202,3 @@ HPOL_RESPONSE_DATA = (
     np.zeros(HPOL_PHI_RESPONSE_DATA[0].shape),
     *HPOL_PHI_RESPONSE_DATA
 )
-ALL_FILTERS_DATA = _read_filter_data(FILT_DATA_FILE)
